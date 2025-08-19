@@ -78,6 +78,14 @@ void buffer_free(struct buffer *b)
 	XFREE(MTYPE_BUFFER, b);
 }
 
+/* Returns 1 if there is no pending data in the buffer.  Otherwise returns 0. */
+int buffer_empty(struct buffer *b)
+{
+	if (b->tail)
+		return 0;
+	return 1;
+}
+
 /* Make string clone. */
 char *buffer_getstr(struct buffer *b)
 {
@@ -413,16 +421,22 @@ in one shot. */
 	if (!nbyte)
 		/* No data to flush: should we issue a warning message? */
 		return BUFFER_EMPTY;
+	zlog_debug("nbyte: %zu", nbyte);
 
 	/* only place where written should be sign compared */
 	if ((ssize_t)(written = writev(fd, iov, iovcnt)) < 0) {
 		if (ERRNO_IO_RETRY(errno))
+		{
 			/* Calling code should try again later. */
+			zlog_debug("BUFFER_PENDING");
 			return BUFFER_PENDING;
+		}
 		flog_err(EC_LIB_SOCKET, "%s: write error on fd %d: %s",
 			 __func__, fd, safe_strerror(errno));
 		return BUFFER_ERROR;
 	}
+	zlog_debug("written: %zu", written);
+
 
 	/* Free printed buffer data. */
 	while (written > 0) {
